@@ -1,0 +1,93 @@
+---
+title: "NYPD Shooting Incident Data Report"
+author: "Cody Davidson"
+date: "2023-07-26"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Installing packages, loading data, and removing unnecessary rows.
+
+Below we are installing the tidyverse and lubridate packages so that we can do data manipulation, visualization, etc. We're then reading the csv file of the NYPD shooting data and storing it in a data frame represented by 'df.' The data lists every shooting incident in NYC from 2006 through the end of the previous calendar year. My goal with this analysis is to look at the data deeper to see which parts of NYC have the most shootings and what age group the shootings are primarily happening. I'm also curious about the correlation if there is any of the race of the victim and the perpetrator. I will use Mutate_at to replace NA values as unknown to be a bit clearer, and then we will have the specific column names where 'NA' appeared. Where the victim's age shows up for the victim age group, I've removed rows where the victim age group data is either 'UNKNOWN' or '1022' since these don't provide any use for our data frame.
+
+```{r, warning=FALSE, message=FALSE}
+
+library(tidyverse)
+library(lubridate)
+
+df <- read.csv("NYPD_Shooting_Incident_Data__Historic_.csv")
+
+df <- df %>%
+  mutate_at(vars(LOC_OF_OCCUR_DESC, LOC_CLASSFCTN_DESC, LOCATION_DESC, PERP_AGE_GROUP, PERP_SEX, PERP_RACE),
+            ~replace(., is.na(.), "Unknown"))
+
+df$JURISDICTION_CODE[is.na(df$JURISDICTION_CODE)] <- -1
+
+df <- df[!(df$VIC_AGE_GROUP %in% c("UNKNOWN", "1022")), ]
+```
+
+## Analysis of shooting incidents in each borough.
+
+The following bar chart shows the number of incidents in each borough. The results for each borough are ordered from greatest to least, going from left to right to make things more clear, and we can see that Brooklyn has the most shootings out of all of the boroughs.
+
+```{r, warning=FALSE, message=FALSE}
+
+df %>%
+  mutate(BORO = fct_reorder(BORO, BORO, .fun = function(x) -length(x))) %>%
+  ggplot(aes(x = BORO)) +
+  geom_bar() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Number of Shooting Incidents in Each Borough",
+       x = "Borough",
+       y = "Number of Incidents")
+```
+
+## Analysis of the number of shooting incidents by the victims age group. 
+
+The following chart shows the number of incidents by age group. What we can see from the data is that those in the age range of 25-44 are getting shot the most out of all age groups. The graph has the age ranges divided into five different groups, and we can see that 18-24 year old's are getting shot the second most, and those 18 and younger are getting shot the third most. My thought as to why those in the 25-44 age range are involved in the most shootings and right behind them those who are 18 and younger could be contributed to gang-related violence. Typically those who are 65 and older, for example, aren't going to be in gangs or at a stage in their life where they're trying to figure themselves out. I believe those within the 25-44 age range, along with those who are 18 and younger, are trying to find their footing, and some can get lost and misguided. Also, drug and alcohol use could be at play.
+
+```{r}
+print(
+  df %>%
+  ggplot(aes(x = VIC_AGE_GROUP)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Distribution of Incidents Over Different Victim Age Groups",
+       x = "Victim Age Group",
+       y = "Number of Incidents") +
+  theme(plot.title = element_text(hjust = 0.5))
+)
+```
+
+## Chi-squared test
+
+Below is the use of a Chi-squared test of independence to model the relationship between the victim's race and the perpetrator's race in the shooting incidents. The goal is to see if there is a correlation between the two variables. A contingency table is created to know the frequency distribution of the variables. With the outputs, we see 'X-squared = 7637.5'. What this shows is the test statistic. The larger the value means there's a greater divergence from the null hypothesis, which here we see that there's no relationship between the two variables, which is the victim's race and the perpetrator's race. 'df = 48' is the number of categories in each variable within the contingency table. 'p-value < 2.2e-16 is the p-value, which is the probability that an observed difference could have occurred by random chance or not. The smaller the p-value, indicates stronger evidence against the null hypothesis. This means that since the p-value is so small in this case, there's a significant correlation between the race of the victims and the perpetrator's race in the shootings in this data.
+
+```{r}
+contingency_table <- table(df$VIC_RACE, df$PERP_RACE)
+chisq.test(contingency_table)
+contingency_table <- table(df$VIC_RACE, df$PERP_RACE)
+contingency_df <- as.data.frame.table(contingency_table)
+names(contingency_df) <- c("VictimRace", "PerpetratorRace", "Count")
+contingency_df <- contingency_df[contingency_df$VictimRace != "(null)" & 
+                                 contingency_df$VictimRace != "UNKNOWN" & 
+                                 contingency_df$PerpetratorRace != "(null)" & 
+                                 contingency_df$PerpetratorRace != "UNKNOWN", ]
+print(contingency_df)
+```
+
+## Results
+
+Overall, we see that Brooklyn had the most shootings out of all boroughs, and the age group with the most shooting are those from 25-44 years old. We can see from the information from the chi-squared test that there's a strong correlation between the race of the victims and the perpetrator's race when it comes to shootings. The top three races with the highest number of victims and the associated race of the perpetrator are:
+
+BLACK - BLACK = 9046 incidents
+BLACK - WHITE HISPANIC = 787 incidents
+BLACK HISPANIC - BLACK = 800 incidents
+
+Regarding possible bias with the data, there could be selection bias where the data only includes officially reported incidents instead of the actual distribution of shootings. The way the data was collected is another aspect to consider based on the methods used. If the age, race, perpetrator, etc., were misreported or not accurately recorded, this could start to welcome a bias. Analyzing data and especially reporting it can be tricky, so of course, these results I've gotten have come from what I've had to work with. Gathering data isn't the most exciting part, and it can be tough to do accurately.
